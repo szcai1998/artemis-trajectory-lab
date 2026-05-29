@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Artemis Trajectory Lab</title>
+  <!--
+    This simple web application is designed to approximate the look and feel of
+    the Artemis mission visualization demo shown in OpenAI’s GPT‑5.5 teaser.
+    It uses Three.js from a CDN to render a 3D scene containing the Earth,
+    Moon, and a moving spacecraft.  The left panel shows telemetry, the
+    right panel shows a list of mission events, and the bottom bar provides
+    playback controls and a timeline slider.  Everything is packaged in a
+    static HTML/CSS/JS bundle so that it can be viewed locally without any
+    build step.
+  -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Three.js canvas container -->
+    <div id="canvas-container"></div>
+    <!-- Left telemetry panel -->
+    <div class="overlay panel-left">
+      <h1 class="title">Artemis Trajectory Lab</h1>
+      <div id="telemetry" class="panel-body">
+        <div class="telemetry-row"><span class="label">Mission Time:</span> <span id="met" class="value">00:00:00</span></div>
+        <div class="telemetry-row"><span class="label">Distance to Moon:</span> <span id="distance" class="value">0 km</span></div>
+        <div class="telemetry-row"><span class="label">Velocity:</span> <span id="velocity" class="value">0 km/s</span></div>
+        <div class="telemetry-row"><span class="label">Closest Approach:</span> <span id="closest" class="value">—</span></div>
+      </div>
+    </div>
+    <!-- Right events panel -->
+    <div class="overlay panel-right">
+      <h2 class="title">Mission Events</h2>
+      <ul id="events" class="panel-body">
+        <!-- Mission event entries; you can extend or modify this list -->
+        <li><span class="event-time">T+00:00</span> Launch</li>
+        <li><span class="event-time">T+02:30</span> Trans‑Lunar Injection</li>
+        <li><span class="event-time">T+24:00</span> Mid‑Course Correction</li>
+        <li><span class="event-time">T+72:00</span> Lunar Orbit Insertion</li>
+        <li><span class="event-time">T+168:00</span> Return Burn</li>
+        <li><span class="event-time">T+240:00</span> Re‑Entry</li>
+      </ul>
+    </div>
+    <!-- Bottom playback bar -->
+    <div class="overlay panel-bottom">
+      <div id="controls">
+        <button id="play" class="control-btn">Play</button>
+        <button id="pause" class="control-btn">Pause</button>
+        <button id="reset" class="control-btn">Reset</button>
+        <label class="speed-label">Speed:
+          <select id="speed" class="speed-select">
+            <option value="1">1×</option>
+            <option value="5">5×</option>
+            <option value="20">20×</option>
+          </select>
+        </label>
+      </div>
+      <input type="range" id="timeline" min="0" max="999" value="0" step="1" />
+    </div>
+  </div>
+  <!-- Include Three.js and OrbitControls from CDN -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>

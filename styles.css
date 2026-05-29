@@ -1,0 +1,225 @@
+/*
+ * Styling for the Artemis Trajectory Lab demo.
+ * The goal is to achieve a sleek, dark mission‑control aesthetic reminiscent
+ * of professional aerospace dashboards. Panels are semi‑transparent so the
+ * Three.js scene remains visible underneath. Simple CSS variables allow
+ * easy customization of colors.
+ */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  background-color: #0b1120; /* dark background */
+  color: #c8d2e1;
+}
+
+/* CSS variables for primary colors */
+:root {
+  --panel-bg: rgba(20, 28, 40, 0.85);
+  --panel-border: rgba(80, 96, 120, 0.6);
+  --accent-color: #37c0ff;
+  --text-muted: #6b7c93;
+  --control-bg: #142136;
+  --control-border: #25314d;
+  --control-hover: #21314e;
+}
+
+#app {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+/* Canvas container covers the entire viewport */
+#canvas-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, #0f1a2f 0%, #02040a 100%);
+}
+
+/* Shared overlay panel styling */
+.overlay {
+  position: absolute;
+  z-index: 10;
+  color: #d9e3f0;
+}
+
+.panel-left {
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  overflow-y: auto;
+}
+
+.panel-right {
+  top: 0;
+  right: 0;
+  width: 260px;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  overflow-y: auto;
+}
+
+.panel-bottom {
+  bottom: 0;
+  left: 260px;
+  right: 260px;
+  height: 100px;
+  padding: 12px 20px;
+  box-sizing: border-box;
+  background-color: var(--panel-bg);
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Typography */
+.title {
+  margin: 0 0 10px 0;
+  font-size: 1.2rem;
+  color: var(--accent-color);
+  letter-spacing: 0.05em;
+}
+
+.panel-body {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.telemetry-row {
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.telemetry-row .label {
+  color: var(--text-muted);
+  margin-right: 8px;
+}
+
+.telemetry-row .value {
+  color: #e8efff;
+  font-weight: 500;
+}
+
+/* Mission events list */
+#events {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#events li {
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: #e0ebff;
+}
+
+#events .event-time {
+  display: inline-block;
+  width: 70px;
+  color: var(--text-muted);
+}
+
+/* Bottom control bar styling */
+#controls {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.control-btn {
+  background-color: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: #e8efff;
+  padding: 6px 12px;
+  margin-right: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+  background-color: var(--control-hover);
+}
+
+.speed-label {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+.speed-select {
+  background-color: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: #e8efff;
+  margin-left: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Timeline slider */
+#timeline {
+  width: 100%;
+  appearance: none;
+  height: 4px;
+  background: #1f2e49;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+#timeline::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  border: none;
+  margin-top: -5px;
+}
+
+#timeline::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  border: none;
+}
+
+/* Make panels scrollable on small screens */
+.panel-left::-webkit-scrollbar,
+.panel-right::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-left::-webkit-scrollbar-track,
+.panel-right::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-left::-webkit-scrollbar-thumb,
+.panel-right::-webkit-scrollbar-thumb {
+  background-color: rgba(80, 96, 120, 0.4);
+  border-radius: 3px;
+}
