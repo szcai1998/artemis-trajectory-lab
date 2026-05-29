@@ -23,9 +23,10 @@
     }
   </script>
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=1.1" />
 </head>
 <body>
+
   <!-- HUD overlay visual scanline effects for cyber/holographic atmosphere -->
   <div class="hud-scanlines"></div>
   <div class="hud-grid-overlay"></div>
@@ -126,6 +127,57 @@
           </div>
         </div>
 
+        <div class="panel-section maneuver-section">
+          <h2 class="section-title">Maneuver Planner <span id="maneuver-sensor" class="sensor-dot"></span></h2>
+          <div class="control-group" style="margin-bottom: 12px;">
+            <label for="burn-select" class="label">Target Burn Event:</label>
+            <select id="burn-select" class="hud-select">
+              <option value="tli" selected>Trans‑Lunar Injection (TLI)</option>
+              <option value="loi">Lunar Orbit Insertion (LOI)</option>
+              <option value="tei">Trans‑Earth Injection (TEI)</option>
+            </select>
+          </div>
+          
+          <div class="maneuver-sliders" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
+            <div class="slider-row">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <span class="label">Prograde / Retrograde (ΔVp):</span>
+                <span id="dv-prograde-val" class="numeric-val" style="font-size: 0.8rem;">+0 m/s</span>
+              </div>
+              <input type="range" id="dv-prograde" min="-500" max="500" value="0" step="5" class="hud-slider" style="width: 100%;" />
+            </div>
+            <div class="slider-row">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <span class="label">Normal / Antinormal (ΔVn):</span>
+                <span id="dv-normal-val" class="numeric-val" style="font-size: 0.8rem;">+0 m/s</span>
+              </div>
+              <input type="range" id="dv-normal" min="-200" max="200" value="0" step="5" class="hud-slider" style="width: 100%;" />
+            </div>
+            <div class="slider-row">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <span class="label">Radial-In / Out (ΔVr):</span>
+                <span id="dv-radial-val" class="numeric-val" style="font-size: 0.8rem;">+0 m/s</span>
+              </div>
+              <input type="range" id="dv-radial" min="-200" max="200" value="0" step="5" class="hud-slider" style="width: 100%;" />
+            </div>
+          </div>
+          
+          <div class="maneuver-summary" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(80,120,180,0.15); border-radius: 4px; padding: 8px; display: flex; flex-direction: column; gap: 5px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+              <span class="label" style="color: var(--text-secondary);">Maneuver Cost:</span>
+              <span id="burn-mag" class="numeric-val">0 m/s</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+              <span class="label" style="color: var(--text-secondary);">Tank Delta‑V Left:</span>
+              <span id="fuel-budget" class="numeric-val">3200 m/s</span>
+            </div>
+            <div id="perigee-row" style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+              <span class="label" style="color: var(--text-secondary);" id="perigee-label">Est. Periapsis:</span>
+              <span id="est-periapsis" class="numeric-val">—</span>
+            </div>
+          </div>
+        </div>
+
         <div class="panel-section camera-section">
           <h2 class="section-title">Camera Control</h2>
           <div class="control-group">
@@ -214,6 +266,6 @@
   </div>
 
   <!-- Include custom main script as standard ES Module -->
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=1.1"></script>
 </body>
 </html>

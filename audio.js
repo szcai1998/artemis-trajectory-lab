@@ -253,4 +253,97 @@ export class TelemetrySynth {
       }
     }, 450);
   }
+
+  // Play high-tech maneuver sweep slider feedback
+  playBurnSweep(value = 0.04) {
+    if (this.muted || !this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gainNode = this.ctx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    const now = this.ctx.currentTime;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(120 + Math.random() * 80, now + 0.12);
+
+    gainNode.gain.setValueAtTime(value, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+    osc.start(now);
+    osc.stop(now + 0.13);
+  }
+
+  // Recurring fuel low warning beep (slow)
+  startLowFuelBeep() {
+    if (this.muted || !this.ctx || this.fuelBeepInterval) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    this.fuelBeepInterval = setInterval(() => {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gainNode = this.ctx.createGain();
+
+      osc.connect(gainNode);
+      gainNode.connect(this.masterGain);
+
+      const now = this.ctx.currentTime;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(920, now); // High clean alarm chime
+
+      gainNode.gain.setValueAtTime(0.04, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }, 1800);
+  }
+
+  stopLowFuelBeep() {
+    if (this.fuelBeepInterval) {
+      clearInterval(this.fuelBeepInterval);
+      this.fuelBeepInterval = null;
+    }
+  }
+
+  // Recurring crash hazard siren (rapid)
+  startCrashSiren() {
+    if (this.muted || !this.ctx || this.crashSirenInterval) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    this.crashSirenInterval = setInterval(() => {
+      if (this.muted || !this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gainNode = this.ctx.createGain();
+
+      const now = this.ctx.currentTime;
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(380, now);
+      osc.frequency.linearRampToValueAtTime(540, now + 0.18);
+
+      const lowpass = this.ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.setValueAtTime(650, now);
+
+      osc.connect(lowpass);
+      lowpass.connect(gainNode);
+      gainNode.connect(this.masterGain);
+
+      gainNode.gain.setValueAtTime(0.035, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+
+      osc.start(now);
+      osc.stop(now + 0.3);
+    }, 450);
+  }
+
+  stopCrashSiren() {
+    if (this.crashSirenInterval) {
+      clearInterval(this.crashSirenInterval);
+      this.crashSirenInterval = null;
+    }
+  }
 }
