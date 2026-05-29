@@ -3,64 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Artemis Trajectory Lab</title>
-  <!--
-    This simple web application is designed to approximate the look and feel of
-    the Artemis mission visualization demo shown in OpenAI’s GPT‑5.5 teaser.
-    It uses Three.js from a CDN to render a 3D scene containing the Earth,
-    Moon, and a moving spacecraft.  The left panel shows telemetry, the
-    right panel shows a list of mission events, and the bottom bar provides
-    playback controls and a timeline slider.  Everything is packaged in a
-    static HTML/CSS/JS bundle so that it can be viewed locally without any
-    build step.
-  -->
+  <title>Artemis Trajectory Lab - Mission Command</title>
+  
+  <!-- Premium Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;600;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- Import Map for ES Modules bare specifiers -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/"
+      }
+    }
+  </script>
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- HUD overlay visual scanline effects for cyber/holographic atmosphere -->
+  <div class="hud-scanlines"></div>
+  <div class="hud-grid-overlay"></div>
+
   <div id="app">
     <!-- Three.js canvas container -->
     <div id="canvas-container"></div>
-    <!-- Left telemetry panel -->
-    <div class="overlay panel-left">
-      <h1 class="title">Artemis Trajectory Lab</h1>
-      <div id="telemetry" class="panel-body">
-        <div class="telemetry-row"><span class="label">Mission Time:</span> <span id="met" class="value">00:00:00</span></div>
-        <div class="telemetry-row"><span class="label">Distance to Moon:</span> <span id="distance" class="value">0 km</span></div>
-        <div class="telemetry-row"><span class="label">Velocity:</span> <span id="velocity" class="value">0 km/s</span></div>
-        <div class="telemetry-row"><span class="label">Closest Approach:</span> <span id="closest" class="value">—</span></div>
+    
+    <!-- Left telemetry & diagnostics panel -->
+    <aside class="overlay panel-left" aria-label="System Diagnostics">
+      <!-- Sidebar collapse toggle button -->
+      <button id="toggle-left" class="panel-toggle-btn" aria-label="Toggle Left Panel" title="Toggle Left Panel">◀</button>
+      
+      <div class="panel-inner">
+        <div class="panel-header">
+          <div class="header-top-row">
+            <div class="panel-tag">SYS.STATUS: ACTIVE</div>
+            <button id="sound-toggle" class="sound-btn muted" aria-label="Toggle Dashboard Audio" title="Toggle Audio (Procedural Synth)">
+              <!-- Speaker off SVG by default -->
+              <svg id="sound-svg" viewBox="0 0 24 24">
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM19 12c0 3.28-1.97 6.12-4.8 7.3l.66 1.48C18.66 19.23 21 15.89 21 12s-2.34-7.23-6.14-8.78l-.66 1.48C17.03 5.88 19 8.72 19 12zM4.34 2.93L2.93 4.34 8.59 10H4v4h3l5 5v-6.59l5.07 5.07c-.71.55-1.5.99-2.37 1.28l.6 1.9c1.23-.41 2.36-1.09 3.32-1.97l2.14 2.14 1.41-1.41L4.34 2.93zM12 4L9.91 6.09 12 8.18V4z"/>
+              </svg>
+            </button>
+          </div>
+          <h1 class="title">Artemis Command</h1>
+        </div>
+        
+        <div class="panel-section">
+          <h2 class="section-title">Telemetry Data <span id="telemetry-sensor" class="sensor-dot"></span></h2>
+          <div id="telemetry" class="panel-body">
+            <div class="telemetry-row">
+              <span class="label">Mission Time:</span> 
+              <span id="met" class="numeric-val">00:00:00</span>
+            </div>
+            <div class="telemetry-row">
+              <span class="label">Distance to Moon:</span> 
+              <div class="value">
+                <span id="distance" class="numeric-val">0</span><span class="unit">km</span>
+              </div>
+            </div>
+            <div class="telemetry-row">
+              <span class="label">Velocity:</span> 
+              <div class="value">
+                <span id="velocity" class="numeric-val">0.000</span><span class="unit">km/s</span>
+              </div>
+            </div>
+            <div class="telemetry-row">
+              <span class="label">Closest Approach:</span> 
+              <div class="value">
+                <span id="closest" class="numeric-val">—</span><span class="unit" id="closest-unit" style="display: none;">km</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel-section">
+          <h2 class="section-title">Spacecraft Vector</h2>
+          <div class="vector-container">
+            <span class="label">Cartesian Coordinates (km):</span>
+            <div id="vector-coords" class="vector-coords numeric">
+              X: +0.000<br>
+              Y: +0.000<br>
+              Z: +0.000
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="section-title">System Health</h2>
+          <div class="diagnostics-container">
+            <div class="diagnostic-row">
+              <div class="diag-header">
+                <span class="label">Propellant (LH2/LOX) <span id="fuel-sensor" class="sensor-dot"></span></span>
+                <span id="fuel-val" class="value numeric">100%</span>
+              </div>
+              <div class="progress-bar">
+                <div id="fuel-bar" class="progress-fill fuel" style="width: 100%"></div>
+              </div>
+            </div>
+            <div class="diagnostic-row">
+              <div class="diag-header">
+                <span class="label">Power Grid <span id="power-sensor" class="sensor-dot"></span></span>
+                <span id="power-val" class="value numeric">98%</span>
+              </div>
+              <div class="progress-bar">
+                <div id="power-bar" class="progress-fill power" style="width: 98%"></div>
+              </div>
+            </div>
+            <div class="diagnostic-row">
+              <div class="diag-header">
+                <span class="label">Comms Signal (DSN) <span id="signal-sensor" class="sensor-dot"></span></span>
+                <span id="signal-val" class="value numeric">92%</span>
+              </div>
+              <div class="progress-bar">
+                <div id="signal-bar" class="progress-fill signal" style="width: 92%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section camera-section">
+          <h2 class="section-title">Camera Control</h2>
+          <div class="control-group">
+            <label for="camera-mode" class="label">Tracking Mode:</label>
+            <select id="camera-mode" class="hud-select">
+              <option value="free">Free Orbit (Manual)</option>
+              <option value="craft" selected>Track Spacecraft (Chase)</option>
+              <option value="earth">Earth View (Lock-On)</option>
+              <option value="moon">Moon View (Lock-On)</option>
+            </select>
+          </div>
+        </div>
       </div>
-    </div>
-    <!-- Right events panel -->
-    <div class="overlay panel-right">
-      <h2 class="title">Mission Events</h2>
-      <ul id="events" class="panel-body">
-        <!-- Mission event entries; you can extend or modify this list -->
-        <li><span class="event-time">T+00:00</span> Launch</li>
-        <li><span class="event-time">T+02:30</span> Trans‑Lunar Injection</li>
-        <li><span class="event-time">T+24:00</span> Mid‑Course Correction</li>
-        <li><span class="event-time">T+72:00</span> Lunar Orbit Insertion</li>
-        <li><span class="event-time">T+168:00</span> Return Burn</li>
-        <li><span class="event-time">T+240:00</span> Re‑Entry</li>
-      </ul>
-    </div>
-    <!-- Bottom playback bar -->
-    <div class="overlay panel-bottom">
-      <div id="controls">
-        <button id="play" class="control-btn">Play</button>
-        <button id="pause" class="control-btn">Pause</button>
-        <button id="reset" class="control-btn">Reset</button>
-        <label class="speed-label">Speed:
-          <select id="speed" class="speed-select">
-            <option value="1">1×</option>
-            <option value="5">5×</option>
-            <option value="20">20×</option>
-          </select>
-        </label>
+    </aside>
+
+    <!-- Right events & log terminal panel -->
+    <aside class="overlay panel-right" aria-label="Mission Log">
+      <!-- Sidebar collapse toggle button -->
+      <button id="toggle-right" class="panel-toggle-btn" aria-label="Toggle Right Panel" title="Toggle Right Panel">▶</button>
+      
+      <div class="panel-inner">
+        <div class="panel-header">
+          <div class="panel-tag">LOG.STREAM: ENGAGED</div>
+          <h2 class="title">Mission Events <span id="events-sensor" class="sensor-dot"></span></h2>
+        </div>
+        
+        <div class="panel-section">
+          <h3 class="section-title">Milestones</h3>
+          <ul id="events" class="panel-body">
+            <li id="event-0" class="event-item"><span class="event-time">T+00:00</span> Launch & Ascent</li>
+            <li id="event-1" class="event-item"><span class="event-time">T+02:30</span> Trans‑Lunar Injection</li>
+            <li id="event-2" class="event-item"><span class="event-time">T+24:00</span> Mid‑Course Correction</li>
+            <li id="event-3" class="event-item"><span class="event-time">T+72:00</span> Lunar Orbit Insertion</li>
+            <li id="event-4" class="event-item"><span class="event-time">T+168:00</span> Return Burn</li>
+            <li id="event-5" class="event-item"><span class="event-time">T+240:00</span> Atmospheric Re‑Entry</li>
+          </ul>
+        </div>
+
+        <div class="panel-section terminal-section">
+          <h3 class="section-title">Telemetry Terminal Feed</h3>
+          <div class="terminal-container">
+            <div id="terminal-feed" class="terminal-body"></div>
+          </div>
+        </div>
       </div>
-      <input type="range" id="timeline" min="0" max="999" value="0" step="1" />
-    </div>
+    </aside>
+
+    <!-- Bottom playback and chart bar -->
+    <footer class="overlay panel-bottom" aria-label="Timeline & Controls">
+      <div class="timeline-hud-row">
+        <div id="controls">
+          <button id="play" class="control-btn glow-btn" aria-label="Play Simulation">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>PLAY
+          </button>
+          <button id="pause" class="control-btn" aria-label="Pause Simulation">
+            <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>PAUSE
+          </button>
+          <button id="reset" class="control-btn" aria-label="Reset Simulation">
+            <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>RESET
+          </button>
+          <label class="speed-label">TIME COMPRESSION:
+            <select id="speed" class="speed-select" aria-label="Simulation Speed">
+              <option value="1">1×</option>
+              <option value="5" selected>5×</option>
+              <option value="20">20×</option>
+            </select>
+          </label>
+        </div>
+        <div class="timeline-scrubber-wrapper">
+          <input type="range" id="timeline" min="0" max="999" value="0" step="1" aria-label="Simulation Timeline Scrub" />
+          <div class="timeline-ticks">
+            <span class="tick" style="left: 0%">LAUNCH<span class="tick-line"></span></span>
+            <span class="tick" style="left: 10%">TLI<span class="tick-line"></span></span>
+            <span class="tick" style="left: 30%">LOI<span class="tick-line"></span></span>
+            <span class="tick" style="left: 70%">TEI<span class="tick-line"></span></span>
+            <span class="tick" style="left: 100%">SPLASH<span class="tick-line"></span></span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Graph container for Chart.js -->
+      <div class="chart-wrapper">
+        <canvas id="telemetryChart"></canvas>
+      </div>
+    </footer>
   </div>
-  <!-- Include Three.js and OrbitControls from CDN -->
+
+  <!-- Include custom main script as standard ES Module -->
   <script type="module" src="main.js"></script>
 </body>
 </html>

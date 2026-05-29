@@ -1,30 +1,71 @@
 /*
- * Styling for the Artemis Trajectory Lab demo.
- * The goal is to achieve a sleek, dark mission‑control aesthetic reminiscent
- * of professional aerospace dashboards. Panels are semi‑transparent so the
- * Three.js scene remains visible underneath. Simple CSS variables allow
- * easy customization of colors.
+ * Styling for the Artemis Trajectory Lab - Mission Command.
+ * Uses a cyber-military glassmorphic dark theme with glowing neon accents.
  */
+
+:root {
+  /* Required HSL Color Tokens from GEMINI.md */
+  --bg-color: hsl(222, 47%, 7%);
+  --panel-bg: hsla(222, 47%, 10%, 0.75);
+  --panel-border: hsla(215, 20%, 40%, 0.4);
+  --accent-cyan: hsl(198, 100%, 61%);
+  --accent-blue: hsl(210, 100%, 50%);
+  --accent-gold: hsl(45, 100%, 50%);
+  --accent-red: hsl(0, 100%, 60%);
+  --text-primary: hsl(214, 32%, 91%);
+  --text-muted: hsl(215, 16%, 57%);
+
+  /* UI Tokens & Glowing Dim Levels */
+  --panel-border-glow: hsla(198, 100%, 61%, 0.15);
+  --accent-cyan-dim: hsla(198, 100%, 61%, 0.15);
+  --text-secondary: hsl(214, 18%, 75%);
+  --control-bg: hsla(222, 45%, 15%, 0.8);
+  --control-border: hsl(222, 30%, 25%);
+  --control-hover: hsla(198, 100%, 61%, 0.12);
+}
+
+/* Base resets & styling */
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', Roboto, sans-serif;
-  background-color: #0b1120; /* dark background */
-  color: #c8d2e1;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  user-select: none;
 }
 
-/* CSS variables for primary colors */
-:root {
-  --panel-bg: rgba(20, 28, 40, 0.85);
-  --panel-border: rgba(80, 96, 120, 0.6);
-  --accent-color: #37c0ff;
-  --text-muted: #6b7c93;
-  --control-bg: #142136;
-  --control-border: #25314d;
-  --control-hover: #21314e;
+/* CRT Screen Scanline & Grid Effect overlay */
+.hud-scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.15) 50%
+  );
+  background-size: 100% 4px;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+.hud-grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(80, 120, 180, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(80, 120, 180, 0.02) 1px, transparent 1px);
+  pointer-events: none;
+  z-index: 2;
 }
 
 #app {
@@ -33,193 +74,885 @@ html, body {
   width: 100%;
 }
 
-/* Canvas container covers the entire viewport */
+/* Three.js viewport container */
 #canvas-container {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center, #0f1a2f 0%, #02040a 100%);
+  background: radial-gradient(circle at center, #050d1e 0%, #010306 100%);
+  z-index: 1;
 }
 
-/* Shared overlay panel styling */
+/* Shared Glassmorphic floating HUD panels */
 .overlay {
   position: absolute;
   z-index: 10;
-  color: #d9e3f0;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    0 0 15px 0 var(--panel-border-glow);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Futuristic Cyberpunk Corner L-Brackets */
+.overlay::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 14px;
+  height: 14px;
+  border-top: 2px solid var(--accent-cyan);
+  border-left: 2px solid var(--accent-cyan);
+  border-top-left-radius: 6px;
+  pointer-events: none;
+  transition: border-color 0.3s ease;
+}
+
+.overlay::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 14px;
+  height: 14px;
+  border-bottom: 2px solid var(--accent-cyan);
+  border-right: 2px solid var(--accent-cyan);
+  border-bottom-right-radius: 6px;
+  pointer-events: none;
+  transition: border-color 0.3s ease;
 }
 
 .panel-left {
-  top: 0;
-  left: 0;
-  width: 260px;
-  height: 100%;
-  padding: 20px;
-  box-sizing: border-box;
-  background-color: var(--panel-bg);
-  border-right: 1px solid var(--panel-border);
-  overflow-y: auto;
+  top: 20px;
+  left: 20px;
+  width: 320px;
+  bottom: 220px; /* Leave space for bottom slider panel + margins */
+  padding: 0;
+  overflow: visible;
 }
 
 .panel-right {
-  top: 0;
-  right: 0;
-  width: 260px;
-  height: 100%;
-  padding: 20px;
-  box-sizing: border-box;
-  background-color: var(--panel-bg);
-  border-left: 1px solid var(--panel-border);
-  overflow-y: auto;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  bottom: 220px;
+  padding: 0;
+  overflow: visible;
 }
 
 .panel-bottom {
-  bottom: 0;
-  left: 260px;
-  right: 260px;
-  height: 100px;
-  padding: 12px 20px;
-  box-sizing: border-box;
-  background-color: var(--panel-bg);
-  border-top: 1px solid var(--panel-border);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  height: 180px;
+  padding: 14px 20px;
+  overflow: hidden;
 }
 
-/* Typography */
+/* Panel Header Typography */
+.panel-header {
+  border-bottom: 1px solid hsla(215, 30%, 40%, 0.25);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  margin-bottom: 4px;
+}
+
 .title {
-  margin: 0 0 10px 0;
-  font-size: 1.2rem;
-  color: var(--accent-color);
-  letter-spacing: 0.05em;
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 10px var(--accent-cyan-dim);
+  text-transform: uppercase;
+}
+
+/* Sections & Typography within panels */
+.panel-section {
+  margin-bottom: 20px;
+  background-color: hsla(222, 47%, 12%, 0.35);
+  border: 1px solid hsla(215, 20%, 40%, 0.18);
+  border-radius: 6px;
+  padding: 14px;
+  box-shadow: inset 0 0 12px hsla(215, 20%, 40%, 0.05);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.panel-section:hover {
+  border-color: hsla(198, 100%, 61%, 0.25);
+  box-shadow: 
+    inset 0 0 12px hsla(215, 20%, 40%, 0.05),
+    0 0 8px hsla(198, 100%, 61%, 0.05);
+}
+
+.panel-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  letter-spacing: 0.12em;
+  margin: 0 0 12px 0;
+  border-bottom: 1px solid hsla(198, 100%, 61%, 0.2);
+  padding-bottom: 6px;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 32px;
+  height: 2px;
+  background-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
 }
 
 .panel-body {
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
+/* Value text elements */
+.numeric {
+  font-family: 'Share Tech Mono', monospace;
+  font-weight: bold;
+}
+
+/* Telemetry row grid */
 .telemetry-row {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   display: flex;
   justify-content: space-between;
-  width: 100%;
+  align-items: center;
+  border-bottom: 1px dashed hsla(215, 20%, 40%, 0.1);
+  padding-bottom: 6px;
+}
+
+.telemetry-row:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .telemetry-row .label {
-  color: var(--text-muted);
-  margin-right: 8px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
 
 .telemetry-row .value {
-  color: #e8efff;
-  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
 }
 
-/* Mission events list */
+/* 3D Vector Coordinate display */
+.vector-container {
+  background-color: hsla(0, 0%, 0%, 0.25);
+  border: 1px solid hsla(215, 20%, 40%, 0.15);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.vector-container .label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.vector-coords {
+  color: var(--accent-cyan);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+}
+
+/* Dynamic diagnostic bars */
+.diagnostics-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagnostic-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.diag-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.diag-header .label {
+  color: var(--text-secondary);
+}
+
+.diag-header .value {
+  color: var(--text-primary);
+  font-weight: bold;
+}
+
+.progress-bar {
+  height: 6px;
+  background-color: hsla(222, 30%, 25%, 0.6);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
+}
+
+.progress-fill.fuel {
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+  box-shadow: 0 0 6px hsla(198, 100%, 61%, 0.3);
+}
+
+.progress-fill.power {
+  background: linear-gradient(90deg, var(--accent-gold), #ffaa00);
+  box-shadow: 0 0 6px hsla(45, 100%, 50%, 0.3);
+}
+
+.progress-fill.signal {
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-cyan));
+  box-shadow: 0 0 6px hsla(198, 100%, 61%, 0.2);
+}
+
+/* HUD Selector / Dropdowns */
+.hud-select {
+  width: 100%;
+  background-color: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.hud-select:hover, .hud-select:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan-dim);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-group .label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Mission Events list */
 #events {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-#events li {
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-  color: #e0ebff;
+.event-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  background-color: hsla(222, 30%, 15%, 0.2);
+  transition: all 0.2s ease;
+  border-radius: 0 4px 4px 0;
 }
 
-#events .event-time {
-  display: inline-block;
-  width: 70px;
+.event-item .event-time {
+  font-family: 'Share Tech Mono', monospace;
   color: var(--text-muted);
+  margin-right: 8px;
+  font-weight: bold;
 }
 
-/* Bottom control bar styling */
+/* Highlight active events */
+.event-item.active {
+  border-left-color: var(--accent-cyan);
+  background-color: var(--accent-cyan-dim);
+  color: var(--text-primary);
+  box-shadow: inset 5px 0 10px -5px rgba(55, 192, 255, 0.2);
+}
+
+.event-item.passed {
+  border-left-color: var(--accent-blue);
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+/* Retro typewriter logging terminal */
+.terminal-section {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.terminal-container {
+  background-color: hsla(0, 0%, 0%, 0.45);
+  border: 1px solid hsla(215, 20%, 40%, 0.18);
+  border-radius: 4px;
+  padding: 10px 12px;
+  flex-grow: 1;
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.terminal-body {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--accent-cyan);
+  white-space: pre-wrap;
+}
+
+/* Bottom Control & Timeline Panel Layout */
+.timeline-hud-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 12px;
+  gap: 20px;
+}
+
 #controls {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .control-btn {
   background-color: var(--control-bg);
   border: 1px solid var(--control-border);
-  color: #e8efff;
-  padding: 6px 12px;
-  margin-right: 8px;
+  color: var(--text-primary);
+  padding: 8px 14px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+/* Button laser scanner sweep on hover */
+.control-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(55, 192, 255, 0.12),
+    var(--accent-cyan),
+    rgba(55, 192, 255, 0.12),
+    transparent
+  );
+  pointer-events: none;
+  transition: none;
+}
+
+.control-btn:hover:not(:disabled)::after {
+  animation: sweep 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .control-btn:hover {
   background-color: var(--control-hover);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-dim);
+}
+
+.control-btn.glow-btn {
+  border-color: var(--accent-cyan);
+  background-color: hsla(198, 100%, 61%, 0.06);
 }
 
 .speed-label {
   display: flex;
   align-items: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-left: auto;
+  letter-spacing: 0.08em;
+  margin-left: 10px;
 }
 
 .speed-select {
   background-color: var(--control-bg);
   border: 1px solid var(--control-border);
-  color: #e8efff;
-  margin-left: 6px;
-  padding: 4px 6px;
+  color: var(--text-primary);
+  margin-left: 8px;
+  padding: 4px 10px;
   border-radius: 4px;
-  font-size: 0.9rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
 }
 
-/* Timeline slider */
-#timeline {
-  width: 100%;
-  appearance: none;
+.speed-select:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan-dim);
+}
+
+/* Scrubber wrapper & ticks scale */
+.timeline-scrubber-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  padding-bottom: 22px; /* Space for absolute ticks labels */
+}
+
+.timeline-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.timeline-ticks .tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.timeline-ticks .tick-line {
+  width: 1px;
   height: 4px;
-  background: #1f2e49;
-  border-radius: 2px;
+  background-color: var(--panel-border);
+  margin-top: 2px;
+}
+
+.timeline-ticks .tick:hover {
+  color: var(--accent-cyan);
+}
+
+/* Bottom scrubbing slider */
+#timeline {
+  flex-grow: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  background: hsla(222, 30%, 25%, 0.6);
+  border-radius: 3px;
   outline: none;
   cursor: pointer;
+  transition: background 0.1s ease;
 }
 
 #timeline::-webkit-slider-thumb {
   appearance: none;
+  -webkit-appearance: none;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent-color);
-  border: none;
-  margin-top: -5px;
+  background: var(--accent-cyan);
+  border: 2px solid var(--bg-color);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+#timeline::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
 }
 
 #timeline::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--accent-color);
-  border: none;
+  background: var(--accent-cyan);
+  border: 2px solid var(--bg-color);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  cursor: pointer;
+  transition: transform 0.1s ease;
 }
 
-/* Make panels scrollable on small screens */
-.panel-left::-webkit-scrollbar,
-.panel-right::-webkit-scrollbar {
-  width: 6px;
+#timeline::-moz-range-thumb:hover {
+  transform: scale(1.25);
 }
 
-.panel-left::-webkit-scrollbar-track,
-.panel-right::-webkit-scrollbar-track {
+/* Widescreen Chart wrapper */
+.chart-wrapper {
+  position: relative;
+  flex-grow: 1;
+  height: calc(100% - 68px);
+  margin-top: 12px;
+  width: 100%;
+}
+
+/* Scrollbar customizations for high-fidelity look */
+.panel-inner::-webkit-scrollbar,
+.terminal-container::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.panel-inner::-webkit-scrollbar-track,
+.terminal-container::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.panel-left::-webkit-scrollbar-thumb,
-.panel-right::-webkit-scrollbar-thumb {
-  background-color: rgba(80, 96, 120, 0.4);
-  border-radius: 3px;
+.panel-inner::-webkit-scrollbar-thumb,
+.terminal-container::-webkit-scrollbar-thumb {
+  background-color: hsla(215, 20%, 40%, 0.25);
+  border-radius: 2px;
+}
+
+.panel-inner::-webkit-scrollbar-thumb:hover,
+.terminal-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-cyan);
+}
+
+/* Responsive constraints */
+@media (max-width: 900px) {
+  .panel-left, .panel-right {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* On compact screens, hide secondary components gracefully */
+  .panel-right {
+    display: none;
+  }
+  .panel-left {
+    bottom: 220px;
+    right: 20px;
+    width: auto;
+  }
+  .panel-bottom {
+    left: 20px;
+    right: 20px;
+  }
+}
+
+@media (max-height: 600px) {
+  .panel-left, .panel-right {
+    bottom: 20px;
+  }
+  .panel-bottom {
+    display: none;
+  }
+}
+
+/* Sound Button and Emergency Alerts Integration */
+.sound-btn {
+  background-color: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.sound-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan-dim);
+}
+
+.sound-btn.muted {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.sound-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* Cyber Header elements */
+.header-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+
+.panel-left .panel-header, .panel-right .panel-header {
+  border-bottom: 1px solid hsla(215, 30%, 40%, 0.2);
+  position: relative;
+}
+
+/* Vector control SVGs placement */
+.control-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Signal blackout emergency pulsing alert */
+@keyframes alert-pulse {
+  0% {
+    border-color: hsla(0, 100%, 60%, 0.35);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.5),
+      0 0 10px 0 hsla(0, 100%, 60%, 0.25);
+  }
+  50% {
+    border-color: hsla(0, 100%, 60%, 0.85);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.6),
+      0 0 20px 4px hsla(0, 100%, 60%, 0.45);
+  }
+  100% {
+    border-color: hsla(0, 100%, 60%, 0.35);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.5),
+      0 0 10px 0 hsla(0, 100%, 60%, 0.25);
+  }
+}
+
+.blackout-active .overlay {
+  animation: alert-pulse 1.8s ease-in-out infinite;
+}
+
+.blackout-active .overlay::before, 
+.blackout-active .overlay::after {
+  border-color: var(--accent-red) !important;
+}
+
+.blackout-active .panel-right .panel-tag,
+.blackout-active .panel-right .title {
+  color: var(--accent-red) !important;
+  text-shadow: 0 0 12px hsla(0, 100%, 60%, 0.4);
+}
+
+.blackout-active .panel-right .panel-header {
+  border-bottom-color: hsla(0, 100%, 60%, 0.3);
+}
+
+/* Pulsing warning text indicator */
+.warning-pulse {
+  color: var(--accent-red) !important;
+  animation: text-pulse 1s ease-in-out infinite;
+}
+
+@keyframes text-pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* Sensor active blinking indicator dot */
+.sensor-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: blink 2s infinite ease-in-out;
+}
+
+.sensor-dot.warning {
+  background-color: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold);
+}
+
+.sensor-dot.alert {
+  background-color: var(--accent-red);
+  box-shadow: 0 0 8px var(--accent-red);
+  animation: blink 0.8s infinite ease-in-out;
+}
+
+@keyframes blink {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
+/* Version 3 Ultimate Visual Polish Additions */
+
+/* Clean Monospace Typography & Glowing Numeric Fields */
+.numeric-val {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px hsla(198, 100%, 61%, 0.4);
+  font-weight: bold;
+  font-size: 0.95rem;
+  transition: color 0.3s ease;
+}
+
+.numeric-val.warning-pulse {
+  color: var(--accent-red);
+  text-shadow: 0 0 10px hsla(0, 100%, 60%, 0.5);
+}
+
+.unit {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-inline-start: 4px;
+  text-transform: lowercase;
+}
+
+/* Collapsible Panel Sliders */
+.panel-left.collapsed {
+  transform: translateX(-340px);
+}
+
+.panel-right.collapsed {
+  transform: translateX(340px);
+}
+
+/* Absolute Cyber Panel Toggles */
+.panel-toggle-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 52px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  z-index: 100;
+  outline: none;
+  box-shadow: 0 0 10px var(--panel-border-glow);
+  font-weight: bold;
+  box-sizing: border-box;
+}
+
+.panel-toggle-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--control-bg);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px var(--accent-cyan-dim);
+}
+
+#toggle-left {
+  right: -18px;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+#toggle-right {
+  left: -18px;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+}
+
+/* Colored Console Tag Highlights */
+.log-ok {
+  color: hsl(120, 100%, 60%) !important;
+  font-weight: bold;
+}
+
+.log-warn {
+  color: var(--accent-red) !important;
+  font-weight: bold;
+}
+
+.log-burn {
+  color: var(--accent-gold) !important;
+  font-weight: bold;
+}
+
+.log-link {
+  color: var(--accent-cyan) !important;
+  font-weight: bold;
 }
