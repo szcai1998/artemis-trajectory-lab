@@ -10,19 +10,6 @@ import { TelemetrySynth } from './audio.js';
 // Instantiate procedural sound engine
 const synth = new TelemetrySynth();
 
-// Pre-allocated scratch containers for render loop optimization (Section 4.2 of rule.md)
-const scratchDir = new THREE.Vector3();
-const scratchQuat = new THREE.Quaternion();
-const upVector = new THREE.Vector3(0, 0, 1);
-const scratchWorldPos = new THREE.Vector3();
-const scratchNormal = new THREE.Vector3();
-const scratchToCraft = new THREE.Vector3();
-const scratchStartPoint = new THREE.Vector3();
-const scratchCraftPos = new THREE.Vector3();
-const scratchDelta = new THREE.Vector3();
-const scratchZero = new THREE.Vector3(0, 0, 0);
-
-
 // -----------------------------------------------------------------------------
 // 1. Data Generation & Mission Constants
 // -----------------------------------------------------------------------------
@@ -33,242 +20,55 @@ const TRAJ_LENGTH = 1000; // Sample points in the trajectory
 const TOTAL_HOURS = 240;
 const SECONDS_PER_STEP = (TOTAL_HOURS * 3600) / TRAJ_LENGTH; // 864s per step (14.4 mins)
 
-// Interactive Burn Vector States (m/s)
-let tliDv = { p: 0, n: 0, r: 0 }; // TLI (Earth departure)
-let loiDv = { p: 0, n: 0, r: 0 }; // LOI (Lunar capture)
-let teiDv = { p: 0, n: 0, r: 0 }; // TEI (Earth return)
-let activeBurnEvent = 'tli';
-
-let tliCost = 0;
-let loiCost = 0;
-let teiCost = 0;
-
+// Create a piecewise, continuous, high-fidelity round-trip trajectory:
+// - Phase 1: Earth -> Moon Transit (step 0 -> 300, hours 0 -> 72)
+// - Phase 2: Lunar Orbit Insertion & Science Ops (step 300 -> 700, hours 72 -> 168)
+// - Phase 3: Trans-Earth Return Injection & Re-entry (step 700 -> 1000, hours 168 -> 240)
 const samplePositions = [];
-let closestDistanceKm = Infinity;
-
-// Patched-Conic Keplerian Propagation Engine
-function propagateTrajectory() {
-  // 1. Calculate spent Delta-V and enforce limits (max 3200 m/s budget)
-  let tliMag = Math.sqrt(tliDv.p*tliDv.p + tliDv.n*tliDv.n + tliDv.r*tliDv.r);
-  let loiMag = Math.sqrt(loiDv.p*loiDv.p + loiDv.n*loiDv.n + loiDv.r*loiDv.r);
-  let teiMag = Math.sqrt(teiDv.p*teiDv.p + teiDv.n*teiDv.n + teiDv.r*teiDv.r);
-  let totalSpent = tliMag + loiMag + teiMag;
+for (let i = 0; i <= TRAJ_LENGTH; i++) {
+  const t = i / TRAJ_LENGTH;
+  let x = 0, y = 0, z = 0;
   
-  if (totalSpent > 3200) {
-    const factor = 3200 / totalSpent;
-    tliDv.p *= factor; tliDv.n *= factor; tliDv.r *= factor;
-    loiDv.p *= factor; loiDv.n *= factor; loiDv.r *= factor;
-    teiDv.p *= factor; teiDv.n *= factor; teiDv.r *= factor;
+  if (t <= 0.3) {
+    // Earth-to-Moon Transit
+    const p = t / 0.3; // Normalized phase progress [0, 1]
+    const smoothP = Math.sin(p * Math.PI / 2); // Acceleration ease-out
+    x = (EARTH_TO_MOON_KM - 15000) * smoothP;
+    y = 0;
+    z = 18000 * Math.sin(p * Math.PI); // Beautiful arc above ecliptic
+  } else if (t <= 0.7) {
+    // Lunar Orbit (3 loops around Moon body)
+    const p = (t - 0.3) / 0.4; // Normalized phase progress
+    const orbitRadius = 15000;
+    const numOrbits = 3;
+    const angle = p * Math.PI * 2 * numOrbits - Math.PI; // Face Earth at start
     
-    tliMag = Math.sqrt(tliDv.p*tliDv.p + tliDv.n*tliDv.n + tliDv.r*tliDv.r);
-    loiMag = Math.sqrt(loiDv.p*loiDv.p + loiDv.n*loiDv.n + loiDv.r*loiDv.r);
-    teiMag = Math.sqrt(teiDv.p*teiDv.p + teiDv.n*teiDv.n + teiDv.r*teiDv.r);
-    totalSpent = 3200;
-  }
-
-  tliCost = tliMag;
-  loiCost = loiMag;
-  teiCost = teiMag;
-
-  // 2. Propagate Earth-relative departure ellipse (Phase 1)
-  const r_p = 6600; // Earth parking radius (km)
-  const r_a = 380000 + (tliDv.p * 200); // Apogee increases with prograde thrust
-  const a1 = (r_p + r_a) / 2;
-  const e1 = (r_a - r_p) / (r_a + r_p);
-  const inc1 = tliDv.n * 0.001; // inclination starts at 0, tilts with normal slider
-  const node1 = tliDv.r * 0.001; // ascending node starts at 0, rotates with radial slider
-
-  // 3. Propagate Moon-relative flyby/capture (Phase 2)
-  const r_p_M = Math.max(1800, 3000 + (tliDv.p * 5) - (tliDv.r * 15)); // Moon periapsis kept compact & above surface (1,737 km)
-  const isCaptured = loiDv.p <= -140; // retroburn capture threshold
-  
-  let a2, e2;
-  if (isCaptured) {
-    e2 = Math.min(0.85, Math.max(0.01, 1.0 + (loiDv.p + 140) * 0.004)); // cap e2 at 0.85 to keep orbit inside Moon SOI (66,000 km)
-    a2 = r_p_M / (1 - e2);
+    // Moon is centered at (EARTH_TO_MOON_KM, 0, 0)
+    x = EARTH_TO_MOON_KM + Math.cos(angle) * orbitRadius;
+    y = Math.sin(angle) * orbitRadius * 0.7; // Inclined ellipse
+    z = Math.sin(angle) * orbitRadius * 0.4;
   } else {
-    e2 = 1.05 + Math.abs(loiDv.p + 140) * 0.003; // hyperbola
-    a2 = r_p_M / (e2 - 1);
+    // Return to Earth
+    const p = (t - 0.7) / 0.3; // Normalized phase progress
+    const smoothP = Math.cos(p * Math.PI / 2); // Deceleration near Earth
+    x = (EARTH_TO_MOON_KM - 15000) * smoothP;
+    y = 0;
+    z = 15000 * Math.sin(p * Math.PI); // Arched return line
   }
-  const inc2 = 0.5 + (loiDv.n * 0.002);
-
-  // 4. Propagate Earth-relative return ellipse (Phase 3)
-  const r_p_ret = Math.max(100, 6461 + (teiDv.p - 100) * 1.5 + teiDv.r * 3.0); // Earth perigee >= 100km to prevent division by zero (singularity)
-  const r_a_ret = 384400;
-  const a3 = (r_p_ret + r_a_ret) / 2;
-  const e3 = (r_a_ret - r_p_ret) / (r_a_ret + r_p_ret);
-  const inc3 = teiDv.n * 0.001; // inclination starts at 0, tilts with normal slider
-  const node3 = teiDv.r * 0.002; // ascending node starts at 0, rotates with radial slider
-
-  const isCapturedStatus = isCaptured;
-  const isDeepSpaceEscape = !isCaptured && (tliDv.p > 350);
-
-  // Helper functions for continuous trajectory blending
-  const getPhase1Pos = (step) => {
-    const p = step / 300;
-    const M = p * Math.PI;
-    
-    // Solve Kepler's equation M = E - e1 * sin(E) using Newton-Raphson solver
-    let E = M;
-    for (let iter = 0; iter < 5; iter++) {
-      E = E - (E - e1 * Math.sin(E) - M) / (1 - e1 * Math.cos(E));
-    }
-    
-    // Convert eccentric anomaly E to true anomaly theta
-    const sinE = Math.sin(E);
-    const cosE = Math.cos(E);
-    const denom = 1 - e1 * cosE;
-    const sinTheta = (Math.sqrt(1 - e1 * e1) * sinE) / denom;
-    const cosTheta = (cosE - e1) / denom;
-    const theta = Math.atan2(sinTheta, cosTheta);
-    
-    const r = (a1 * (1 - e1*e1)) / (1 + e1 * Math.cos(theta));
-    
-    // Rotate 180 degrees so apogee points to the positive X (Moon) direction
-    const x0 = -r * Math.cos(theta);
-    const z0 = -r * Math.sin(theta);
-    
-    const rx = x0 * Math.cos(node1) - z0 * Math.sin(node1) * Math.cos(inc1);
-    const ry = z0 * Math.sin(inc1);
-    const rz = x0 * Math.sin(node1) + z0 * Math.cos(node1) * Math.cos(inc1);
-    return { x: rx, y: ry, z: rz };
-  };
-
-  const getPhase2Pos = (step) => {
-    const p = (step - 300) / 400;
-    let rx = 0, ry = 0, rz = 0;
-    
-    if (isCapturedStatus) {
-      const numOrbits = 1;
-      const M = p * Math.PI * 2 * numOrbits - Math.PI;
-      
-      // Solve Kepler's equation M = E - e2 * sin(E) using Newton-Raphson solver
-      let E = M;
-      for (let iter = 0; iter < 5; iter++) {
-        E = E - (E - e2 * Math.sin(E) - M) / (1 - e2 * Math.cos(E));
-      }
-      
-      // Convert eccentric anomaly E to true anomaly theta
-      const sinE = Math.sin(E);
-      const cosE = Math.cos(E);
-      const denom = 1 - e2 * cosE;
-      const sinTheta = (Math.sqrt(1 - e2 * e2) * sinE) / denom;
-      const cosTheta = (cosE - e2) / denom;
-      const theta = Math.atan2(sinTheta, cosTheta);
-      
-      const r = (a2 * (1 - e2*e2)) / (1 + e2 * Math.cos(theta));
-      
-      const dx = r * Math.cos(theta);
-      const dy = r * Math.sin(theta) * Math.cos(inc2);
-      const dz = r * Math.sin(theta) * Math.sin(inc2);
-      
-      rx = EARTH_TO_MOON_KM + dx;
-      ry = dy;
-      rz = dz;
-    } else {
-      const theta = (p - 0.5) * 2.5;
-      const r = (a2 * (e2*e2 - 1)) / (1 + e2 * Math.cos(theta));
-      
-      const dx = r * Math.cos(theta);
-      const dy = r * Math.sin(theta) * Math.cos(inc2);
-      const dz = r * Math.sin(theta) * Math.sin(inc2);
-      
-      rx = EARTH_TO_MOON_KM + dx;
-      ry = dy;
-      rz = dz;
-    }
-    return { x: rx, y: ry, z: rz };
-  };
-
-  const getPhase3Pos = (step) => {
-    let rx = 0, ry = 0, rz = 0;
-    
-    if (isDeepSpaceEscape) {
-      const pTLI = (step - 700) / 300;
-      // Get the exact exit position from Phase 2 to make it continuous!
-      const p2Exit = getPhase2Pos(700);
-      rx = p2Exit.x + pTLI * 120000;
-      ry = p2Exit.y + pTLI * 30000;
-      rz = p2Exit.z + pTLI * 45000;
-    } else {
-      const p = (step - 700) / 300;
-      const M = (1 - p) * Math.PI;
-      
-      // Solve Kepler's equation M = E - e3 * sin(E) using Newton-Raphson solver
-      let E = M;
-      for (let iter = 0; iter < 5; iter++) {
-        E = E - (E - e3 * Math.sin(E) - M) / (1 - e3 * Math.cos(E));
-      }
-      
-      // Convert eccentric anomaly E to true anomaly theta
-      const sinE = Math.sin(E);
-      const cosE = Math.cos(E);
-      const denom = 1 - e3 * cosE;
-      const sinTheta = (Math.sqrt(1 - e3 * e3) * sinE) / denom;
-      const cosTheta = (cosE - e3) / denom;
-      const theta = Math.atan2(sinTheta, cosTheta);
-      
-      const r = (a3 * (1 - e3*e3)) / (1 + e3 * Math.cos(theta));
-      
-      // Rotate 180 degrees so return apogee starts near the Moon (positive X)
-      const x0 = -r * Math.cos(theta);
-      const z0 = -r * Math.sin(theta);
-      
-      rx = x0 * Math.cos(node3) - z0 * Math.sin(node3) * Math.cos(inc3);
-      ry = z0 * Math.sin(inc3);
-      rz = x0 * Math.sin(node3) + z0 * Math.cos(node3) * Math.cos(inc3);
-    }
-    return { x: rx, y: ry, z: rz };
-  };
-
-  // Clear and rebuild positions
-  samplePositions.length = 0;
-  closestDistanceKm = Infinity;
-
-  for (let i = 0; i <= TRAJ_LENGTH; i++) {
-    const timeSec = i * SECONDS_PER_STEP;
-    let x = 0, y = 0, z = 0;
-    
-    if (i < 280) {
-      const pos = getPhase1Pos(i);
-      x = pos.x; y = pos.y; z = pos.z;
-    } else if (i <= 320) {
-      // Transition 1: Phase 1 -> Phase 2 LERP
-      const pos1 = getPhase1Pos(i);
-      const pos2 = getPhase2Pos(i);
-      const t = (i - 280) / 40;
-      x = (1 - t) * pos1.x + t * pos2.x;
-      y = (1 - t) * pos1.y + t * pos2.y;
-      z = (1 - t) * pos1.z + t * pos2.z;
-    } else if (i < 680) {
-      const pos = getPhase2Pos(i);
-      x = pos.x; y = pos.y; z = pos.z;
-    } else if (i <= 720) {
-      // Transition 2: Phase 2 -> Phase 3 LERP
-      const pos2 = getPhase2Pos(i);
-      const pos3 = getPhase3Pos(i);
-      const t = (i - 680) / 40;
-      x = (1 - t) * pos2.x + t * pos3.x;
-      y = (1 - t) * pos2.y + t * pos3.y;
-      z = (1 - t) * pos2.z + t * pos3.z;
-    } else {
-      const pos = getPhase3Pos(i);
-      x = pos.x; y = pos.y; z = pos.z;
-    }
-    
-    samplePositions.push({ x, y, z, timeSec });
-    
-    // Distance to Moon center
-    const dx = EARTH_TO_MOON_KM - x;
-    const dy = -y;
-    const dz = -z;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (dist < closestDistanceKm) closestDistanceKm = dist;
-  }
+  
+  const timeSec = i * SECONDS_PER_STEP;
+  samplePositions.push({ x, y, z, timeSec });
 }
 
-// Initial propagation setup
-propagateTrajectory();
+// Compute closest approach along the simulated path
+let closestDistanceKm = Infinity;
+samplePositions.forEach(p => {
+  const dx = EARTH_TO_MOON_KM - p.x;
+  const dy = -p.y;
+  const dz = -p.z;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (dist < closestDistanceKm) closestDistanceKm = dist;
+});
 
 // -----------------------------------------------------------------------------
 // 2. Procedural Texture Generation (Offline Canvas Drawing)
@@ -720,78 +520,6 @@ const trajectoryMaterial = new THREE.LineBasicMaterial({
 const trajectoryLine = new THREE.Line(trajectoryGeometry, trajectoryMaterial);
 scene.add(trajectoryLine);
 
-// Dynamic 3D Vector Gizmos for planned maneuvers
-const maneuverGizmoGroup = new THREE.Group();
-scene.add(maneuverGizmoGroup);
-
-// Create three arrows for Prograde (Green), Normal (Magenta), and Radial (Cyan) directions
-const gizmoPrograde = new THREE.ArrowHelper(
-  new THREE.Vector3(1, 0, 0),
-  new THREE.Vector3(0, 0, 0),
-  0.001,
-  0x00ff00, // green
-  0.03, // head length
-  0.015 // head width
-);
-const gizmoNormal = new THREE.ArrowHelper(
-  new THREE.Vector3(0, 1, 0),
-  new THREE.Vector3(0, 0, 0),
-  0.001,
-  0xff00ff, // magenta/purple
-  0.03,
-  0.015
-);
-const gizmoRadial = new THREE.ArrowHelper(
-  new THREE.Vector3(0, 0, 1),
-  new THREE.Vector3(0, 0, 0),
-  0.001,
-  0x00ffff, // cyan
-  0.03,
-  0.015
-);
-
-maneuverGizmoGroup.add(gizmoPrograde);
-maneuverGizmoGroup.add(gizmoNormal);
-maneuverGizmoGroup.add(gizmoRadial);
-
-// Helper to update the 3D maneuver arrows
-function updateGizmos() {
-  const idx = activeBurnEvent === 'tli' ? 10 : (activeBurnEvent === 'loi' ? 300 : 700);
-  if (!samplePositions[idx]) return;
-  const p = samplePositions[idx];
-  const burnPos = new THREE.Vector3(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z));
-  maneuverGizmoGroup.position.copy(burnPos);
-  
-  const nextIdx = Math.min(idx + 1, samplePositions.length - 1);
-  const pNext = samplePositions[nextIdx];
-  const vDir = new THREE.Vector3(pNext.x - p.x, pNext.y - p.y, pNext.z - p.z).normalize();
-  
-  let centerPos = new THREE.Vector3(0, 0, 0);
-  if (activeBurnEvent === 'loi') {
-    centerPos.set(kmToScene(EARTH_TO_MOON_KM), 0, 0);
-  }
-  
-  const craftPosAbs = new THREE.Vector3(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z));
-  const rDir = craftPosAbs.clone().sub(centerPos).normalize();
-  const nDir = new THREE.Vector3().crossVectors(rDir, vDir).normalize();
-  
-  const activeDv = activeBurnEvent === 'tli' ? tliDv : (activeBurnEvent === 'loi' ? loiDv : teiDv);
-  
-  gizmoPrograde.setDirection(vDir.clone().multiplyScalar(activeDv.p >= 0 ? 1 : -1));
-  gizmoNormal.setDirection(nDir.clone().multiplyScalar(activeDv.n >= 0 ? 1 : -1));
-  gizmoRadial.setDirection(rDir.clone().multiplyScalar(activeDv.r >= 0 ? 1 : -1));
-  
-  const scaleFactor = 0.0006;
-  const proLength = Math.max(0.001, Math.abs(activeDv.p) * scaleFactor);
-  const normLength = Math.max(0.001, Math.abs(activeDv.n) * scaleFactor);
-  const radLength = Math.max(0.001, Math.abs(activeDv.r) * scaleFactor);
-  
-  gizmoPrograde.setLength(proLength, Math.min(0.015, proLength * 0.3), Math.min(0.007, proLength * 0.15));
-  gizmoNormal.setLength(normLength, Math.min(0.015, normLength * 0.3), Math.min(0.007, normLength * 0.15));
-  gizmoRadial.setLength(radLength, Math.min(0.015, radLength * 0.3), Math.min(0.007, radLength * 0.15));
-}
-updateGizmos();
-
 // Spacecraft Glowing Neon Ribbon Trail (Gradient fade behind craft)
 const TRAIL_SIZE = 60;
 const trailGeometry = new THREE.BufferGeometry();
@@ -1236,240 +964,6 @@ timeline.addEventListener('input', () => {
   updateCraftPosition();
 });
 
-// -----------------------------------------------------------------------------
-// Maneuver Planner DOM Bindings & Real-Time Event Handlers
-// -----------------------------------------------------------------------------
-const burnSelect = document.getElementById('burn-select');
-const proSlider = document.getElementById('dv-prograde');
-const normSlider = document.getElementById('dv-normal');
-const radSlider = document.getElementById('dv-radial');
-
-const proVal = document.getElementById('dv-prograde-val');
-const normVal = document.getElementById('dv-normal-val');
-const radVal = document.getElementById('dv-radial-val');
-const burnMagVal = document.getElementById('burn-mag');
-const fuelBudgetVal = document.getElementById('fuel-budget');
-const periTextLabel = document.getElementById('perigee-label');
-const estPeriapsis = document.getElementById('est-periapsis');
-
-function updateManeuverSlidersUI() {
-  const activeDv = activeBurnEvent === 'tli' ? tliDv : (activeBurnEvent === 'loi' ? loiDv : teiDv);
-  
-  proSlider.value = activeDv.p.toString();
-  normSlider.value = activeDv.n.toString();
-  radSlider.value = activeDv.r.toString();
-  
-  if (activeBurnEvent === 'tli') {
-    proSlider.min = "-200"; proSlider.max = "600";
-    normSlider.min = "-200"; normSlider.max = "200";
-    radSlider.min = "-200"; radSlider.max = "200";
-  } else if (activeBurnEvent === 'loi') {
-    proSlider.min = "-400"; proSlider.max = "100";
-    normSlider.min = "-200"; normSlider.max = "200";
-    radSlider.min = "-200"; radSlider.max = "200";
-  } else if (activeBurnEvent === 'tei') {
-    proSlider.min = "-100"; proSlider.max = "400";
-    normSlider.min = "-200"; normSlider.max = "200";
-    radSlider.min = "-200"; radSlider.max = "200";
-  }
-  
-  updateValueLabels();
-}
-
-function updateValueLabels() {
-  const activeDv = activeBurnEvent === 'tli' ? tliDv : (activeBurnEvent === 'loi' ? loiDv : teiDv);
-  
-  proVal.textContent = `${activeDv.p >= 0 ? '+' : ''}${activeDv.p.toFixed(0)} m/s`;
-  normVal.textContent = `${activeDv.n >= 0 ? '+' : ''}${activeDv.n.toFixed(0)} m/s`;
-  radVal.textContent = `${activeDv.r >= 0 ? '+' : ''}${activeDv.r.toFixed(0)} m/s`;
-  
-  const mag = Math.sqrt(activeDv.p*activeDv.p + activeDv.n*activeDv.n + activeDv.r*activeDv.r);
-  burnMagVal.textContent = `${mag.toFixed(0)} m/s`;
-}
-
-function updateChartData() {
-  speedData.length = 0;
-  distData.length = 0;
-  
-  for (let i = 0; i <= TRAJ_LENGTH; i += 5) {
-    const p = samplePositions[i];
-    
-    let vel = 0;
-    if (i > 0) {
-      const prev = samplePositions[i - 5];
-      const dt = p.timeSec - prev.timeSec;
-      const dx = p.x - prev.x;
-      const dy = p.y - prev.y;
-      const dz = p.z - prev.z;
-      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-      vel = dist / dt;
-    } else {
-      vel = 11.2;
-    }
-    speedData.push(vel);
-    
-    const dxM = EARTH_TO_MOON_KM - p.x;
-    const dyM = -p.y;
-    const dzM = -p.z;
-    const distM = Math.sqrt(dxM*dxM + dyM*dyM + dzM*dzM);
-    distData.push(distM);
-  }
-  
-  telemetryChart.update('none');
-}
-
-function updateFlightAlertsStatus() {
-  const appContainer = document.getElementById('app');
-  const sysTag = document.querySelector('.panel-tag');
-  
-  if (!appContainer || !sysTag) return;
-  
-  appContainer.classList.remove('blackout-active');
-  appContainer.classList.remove('crash-active');
-  appContainer.classList.remove('success-active');
-  sysTag.textContent = "SYS.STATUS: ACTIVE";
-  sysTag.style.color = "";
-  
-  const activeBurn = burnSelect.value;
-  
-  const totalSpent = Math.sqrt(tliDv.p*tliDv.p + tliDv.n*tliDv.n + tliDv.r*tliDv.r) +
-                     Math.sqrt(loiDv.p*loiDv.p + loiDv.n*loiDv.n + loiDv.r*loiDv.r) +
-                     Math.sqrt(teiDv.p*teiDv.p + teiDv.n*teiDv.n + teiDv.r*teiDv.r);
-  
-  const tankLeft = Math.max(0, 3200 - totalSpent);
-  fuelBudgetVal.textContent = `${tankLeft.toFixed(0)} m/s`;
-  
-  const fuelPct = (tankLeft / 3200) * 100;
-  fuelBar.style.width = `${fuelPct}%`;
-  fuelVal.textContent = `${fuelPct.toFixed(0)}%`;
-  
-  const fuelSensor = document.getElementById('fuel-sensor');
-  if (fuelSensor) {
-    fuelSensor.className = fuelPct < 20 ? 'sensor-dot alert' : 'sensor-dot';
-  }
-  
-  if (fuelPct < 15) {
-    synth.startLowFuelBeep();
-  } else {
-    synth.stopLowFuelBeep();
-  }
-  
-  if (activeBurn === 'tli') {
-    periTextLabel.textContent = "Est. Lunar Periapsis:";
-    const r_p_M = 15000 + (tliDv.p * 15) - (tliDv.r * 45);
-    const h_p_M = r_p_M - MOON_RADIUS_KM;
-    
-    if (h_p_M < 0) {
-      estPeriapsis.textContent = "IMPACT";
-      estPeriapsis.className = "numeric-val warning-pulse";
-      appContainer.classList.add('crash-active');
-      sysTag.textContent = "SYS.ALERT: IMPACT COURSE";
-      sysTag.style.color = "var(--accent-red)";
-      synth.startCrashSiren();
-    } else {
-      estPeriapsis.textContent = `${h_p_M.toFixed(0)} km`;
-      estPeriapsis.className = "numeric-val";
-      estPeriapsis.style.color = "";
-      synth.stopCrashSiren();
-    }
-  } else if (activeBurn === 'loi') {
-    periTextLabel.textContent = "Lunar Orbit State:";
-    const isCaptured = loiDv.p <= -140;
-    if (isCaptured) {
-      estPeriapsis.textContent = "CAPTURED";
-      estPeriapsis.className = "numeric-val";
-      estPeriapsis.style.color = "hsl(120, 100%, 60%)";
-    } else {
-      estPeriapsis.textContent = "ESCAPE PATH";
-      estPeriapsis.className = "numeric-val warning-pulse";
-      estPeriapsis.style.color = "var(--accent-gold)";
-    }
-    synth.stopCrashSiren();
-  } else if (activeBurn === 'tei') {
-    periTextLabel.textContent = "Return Perigee Alt:";
-    const r_p_ret = 6461 + (teiDv.p - 100) * 1.5 + teiDv.r * 3.0;
-    const h_p_ret = r_p_ret - EARTH_RADIUS_KM;
-    
-    if (h_p_ret < 0) {
-      estPeriapsis.textContent = "EARTH CRASH";
-      estPeriapsis.className = "numeric-val warning-pulse";
-      appContainer.classList.add('crash-active');
-      sysTag.textContent = "SYS.ALERT: CRITICAL REENTRY";
-      sysTag.style.color = "var(--accent-red)";
-      synth.startCrashSiren();
-    } else if (h_p_ret >= 60 && h_p_ret <= 120) {
-      estPeriapsis.textContent = `${h_p_ret.toFixed(0)} km (SAFE)`;
-      estPeriapsis.className = "numeric-val";
-      estPeriapsis.style.color = "hsl(120, 100%, 60%)";
-      appContainer.classList.add('success-active');
-      sysTag.textContent = "SYS.STATUS: SAFE CORRIDOR";
-      sysTag.style.color = "hsl(120, 100%, 60%)";
-      synth.stopCrashSiren();
-    } else {
-      estPeriapsis.textContent = `${h_p_ret.toFixed(0)} km (SKIP)`;
-      estPeriapsis.className = "numeric-val warning-pulse";
-      estPeriapsis.style.color = "var(--accent-gold)";
-      sysTag.textContent = "SYS.WARN: ATMOS SKIP-OFF";
-      sysTag.style.color = "var(--accent-gold)";
-      synth.stopCrashSiren();
-    }
-  }
-}
-
-function handleSliderChange() {
-  const activeDv = activeBurnEvent === 'tli' ? tliDv : (activeBurnEvent === 'loi' ? loiDv : teiDv);
-  
-  activeDv.p = parseFloat(proSlider.value);
-  activeDv.n = parseFloat(normSlider.value);
-  activeDv.r = parseFloat(radSlider.value);
-  
-  updateValueLabels();
-  
-  synth.init(); // Initialize audio context on first slider touch
-  synth.playBurnSweep();
-  
-  propagateTrajectory();
-  
-  // Re-sync 3D line points
-  const points = samplePositions.map(p => new THREE.Vector3(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z)));
-  trajectoryLine.geometry.setFromPoints(points);
-  trajectoryLine.geometry.attributes.position.needsUpdate = true;
-  
-  updateGizmos();
-  updateChartData();
-  updateFlightAlertsStatus();
-  updateCraftPosition();
-}
-
-burnSelect.addEventListener('change', () => {
-  activeBurnEvent = burnSelect.value;
-  updateManeuverSlidersUI();
-  
-  // Relocate 3D controls target to the active burn event
-  const idx = activeBurnEvent === 'tli' ? 10 : (activeBurnEvent === 'loi' ? 300 : 700);
-  if (samplePositions[idx]) {
-    const p = samplePositions[idx];
-    const burnPos = new THREE.Vector3(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z));
-    controls.target.copy(burnPos);
-    camera.position.copy(burnPos).add(new THREE.Vector3(-0.4, 0.25, 0.4));
-    controls.update();
-  }
-  
-  synth.playClick(0.12);
-  updateGizmos();
-  updateFlightAlertsStatus();
-});
-
-proSlider.addEventListener('input', handleSliderChange);
-normSlider.addEventListener('input', handleSliderChange);
-radSlider.addEventListener('input', handleSliderChange);
-
-// Initialize active HUD telemetry fields at startup
-setTimeout(() => {
-  updateManeuverSlidersUI();
-  updateFlightAlertsStatus();
-}, 200);
-
 cameraModeSelect.addEventListener('change', () => {
   cameraMode = cameraModeSelect.value;
   
@@ -1532,11 +1026,11 @@ function updateCraftPosition() {
   // Align spacecraft nose to trajectory orientation vectors
   const nextIdx = Math.min(idx + 1, samplePositions.length - 1);
   const pNext = samplePositions[nextIdx];
-  scratchDir.set(pNext.x - p.x, pNext.y - p.y, pNext.z - p.z).normalize();
-  if (scratchDir.lengthSq() > 0.0001) {
+  const dir = new THREE.Vector3(pNext.x - p.x, pNext.y - p.y, pNext.z - p.z).normalize();
+  if (dir.lengthSq() > 0.0001) {
     // Standard quaternion looking forward along trajectory
-    scratchQuat.setFromUnitVectors(upVector, scratchDir);
-    craftGroup.quaternion.copy(scratchQuat);
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    craftGroup.quaternion.copy(quat);
   }
   
   // 2. Sync timeline UI scrub slider value without circular triggers
@@ -1584,25 +1078,22 @@ function updateCraftPosition() {
   
   // 6. Interactive System Diagnostics (Fuel, Power, Signals) based on active state
   // Propellant
-  // Dynamic fuel drainage during play loop based on active planned maneuvers
-  let plannedFuel = 3200;
-  if (idx <= 10) {
-    plannedFuel = 3200;
-  } else if (idx <= 300) {
-    plannedFuel = 3200 - tliCost * Math.min(1, (idx - 10) / 15);
+  let fuelLevel = 100;
+  if (idx <= 300) {
+    fuelLevel = Math.max(65, 100 - (idx / 300) * 20); // slow burn down to 80%
+    if (idx >= 295) fuelLevel = 65; // sudden engine drop for insertion
   } else if (idx <= 700) {
-    plannedFuel = 3200 - tliCost - loiCost * Math.min(1, (idx - 300) / 15);
+    fuelLevel = 65; // stable in orbit
   } else {
-    plannedFuel = 3200 - tliCost - loiCost - teiCost * Math.min(1, (idx - 700) / 15);
+    fuelLevel = Math.max(45, 65 - ((idx - 700) / 300) * 18); // return injection drop
+    if (idx >= 995) fuelLevel = 42;
   }
-  const fuelLevel = Math.max(0, (plannedFuel / 3200) * 100);
-  
   fuelBar.style.width = `${fuelLevel}%`;
   fuelVal.textContent = `${fuelLevel.toFixed(0)}%`;
 
   const fuelSensor = document.getElementById('fuel-sensor');
   if (fuelSensor) {
-    fuelSensor.className = fuelLevel < 20 ? 'sensor-dot alert' : (fuelLevel < 50 ? 'sensor-dot warning' : 'sensor-dot');
+    fuelSensor.className = fuelLevel < 50 ? 'sensor-dot warning' : 'sensor-dot';
   }
   
   // Power Grid (Fluctuates during solar shadow transits behind Moon)
@@ -1610,7 +1101,7 @@ function updateCraftPosition() {
   const isBehindMoon = p.x > (EARTH_TO_MOON_KM + 1000);
   let powerLevel = 98 - Math.sin(idx * 0.05) * 1.5;
   if (isBehindMoon) {
-    powerLevel = Math.max(82, 98 - (Math.max(0, idx - 400) * 0.12)); // eclipse drops power
+    powerLevel = Math.max(82, 98 - ((idx - 400) * 0.12)); // eclipse drops power
   }
   powerBar.style.width = `${powerLevel.toFixed(0)}%`;
   powerVal.textContent = `${powerLevel.toFixed(0)}%`;
@@ -1638,7 +1129,7 @@ function updateCraftPosition() {
     // Play Web Audio warning siren
     synth.startBlackoutAlarm();
   } else {
-    signalStrength = Math.min(100, Math.max(22, Math.floor(100 - (p.x / EARTH_TO_MOON_KM) * 28 + Math.sin(idx * 0.1) * 2)));
+    signalStrength = Math.max(22, Math.floor(100 - (p.x / EARTH_TO_MOON_KM) * 28 + Math.sin(idx * 0.1) * 2));
     signalBar.style.width = `${signalStrength}%`;
     signalVal.textContent = `${signalStrength}%`;
     signalVal.className = 'value numeric';
@@ -1686,39 +1177,38 @@ function updateCraftPosition() {
   updateTrailGeometry(idx);
 
   // 12. Update 3D DSN Tracking Link coordinates (dynamically lock onto closest visible ground station)
-  let activeStationName = null;
+  let activeStation = null;
   let minStationDistance = Infinity;
-  scratchStartPoint.set(0, 0, 0); // Default fallback is Earth center
   
   stationMeshes.forEach(s => {
-    // Get absolute station world position as it rotates with Earth (uses pre-allocated scratchWorldPos)
-    s.group.getWorldPosition(scratchWorldPos);
+    // Get absolute station world position as it rotates with Earth
+    const stationWorldPos = new THREE.Vector3();
+    s.group.getWorldPosition(stationWorldPos);
     
-    // Normal vector pointing outward from Earth's center (uses pre-allocated scratchNormal)
-    scratchNormal.copy(scratchWorldPos).normalize();
-    // Distance to craft (uses pre-allocated scratchToCraft)
-    scratchToCraft.copy(craftGroup.position).sub(scratchWorldPos);
-    const hasLineOfSight = scratchNormal.dot(scratchToCraft) > 0;
+    // Normal vector pointing outward from Earth's center
+    const stationNormal = stationWorldPos.clone().normalize();
+    const toCraft = craftGroup.position.clone().sub(stationWorldPos);
+    const hasLineOfSight = stationNormal.dot(toCraft) > 0;
     
     if (hasLineOfSight) {
-      const dist = scratchToCraft.length();
+      const dist = toCraft.length();
       if (dist < minStationDistance) {
         minStationDistance = dist;
-        activeStationName = s.name;
-        scratchStartPoint.copy(scratchWorldPos);
+        activeStation = { name: s.name, pos: stationWorldPos };
       }
     }
   });
 
-  // Calculate coordinates. Fallback to Earth center if behind moon (signal lost)
-  if (isBehindMoon) {
-    scratchStartPoint.set(0, 0, 0);
+  // Calculate coordinates. Fallback to Earth center if all stations are in shadow
+  let dsnStartPoint = new THREE.Vector3(0, 0, 0);
+  if (activeStation && !isBehindMoon) {
+    dsnStartPoint.copy(activeStation.pos);
   }
   
   const dsnPositions = dsnLinkLine.geometry.attributes.position.array;
-  dsnPositions[0] = scratchStartPoint.x;
-  dsnPositions[1] = scratchStartPoint.y;
-  dsnPositions[2] = scratchStartPoint.z;
+  dsnPositions[0] = dsnStartPoint.x;
+  dsnPositions[1] = dsnStartPoint.y;
+  dsnPositions[2] = dsnStartPoint.z;
   dsnPositions[3] = kmToScene(p.x);
   dsnPositions[4] = kmToScene(p.y);
   dsnPositions[5] = kmToScene(p.z);
@@ -1823,22 +1313,22 @@ function animate() {
   // 3. Sub-pixel Translation Tracking Algorithm
   const idx = Math.max(0, Math.min(Math.floor(currentIndex), samplePositions.length - 1));
   const p = samplePositions[idx];
-  scratchCraftPos.set(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z));
+  const craftPos = new THREE.Vector3(kmToScene(p.x), kmToScene(p.y), kmToScene(p.z));
   
   let activeTarget = null;
   if (cameraMode === 'craft') {
-    activeTarget = scratchCraftPos;
+    activeTarget = craftPos;
   } else if (cameraMode === 'earth') {
-    activeTarget = scratchZero;
+    activeTarget = new THREE.Vector3(0, 0, 0);
   } else if (cameraMode === 'moon') {
     activeTarget = moonMesh.position;
   }
   
   if (activeTarget !== null) {
-    // Compute displacement delta from current controls target (uses pre-allocated scratchDelta)
-    scratchDelta.copy(activeTarget).sub(controls.target);
+    // Compute displacement delta from current controls target
+    const delta = activeTarget.clone().sub(controls.target);
     // Add translation delta to both camera position and controls target to preserve offset/angle
-    camera.position.add(scratchDelta);
+    camera.position.add(delta);
     controls.target.copy(activeTarget);
   }
   
@@ -1870,35 +1360,3 @@ toggleRight.addEventListener('click', () => {
   panelRight.classList.toggle('collapsed');
   toggleRight.textContent = panelRight.classList.contains('collapsed') ? '◀' : '▶';
 });
-
-/**
- * Fully disposes of a 3D object and its associated GPU assets.
- * Conforms to Section 4.1 of rule.md for WebGL memory management.
- * @param {THREE.Object3D} obj - The object to clean up.
- */
-export function disposeHierarchy(obj) {
-  obj.traverse((child) => {
-    if (child.isMesh) {
-      if (child.geometry) {
-        child.geometry.dispose();
-      }
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => disposeMaterial(mat));
-        } else {
-          disposeMaterial(child.material);
-        }
-      }
-    }
-  });
-}
-
-function disposeMaterial(material) {
-  material.dispose();
-  for (const key of Object.keys(material)) {
-    const value = material[key];
-    if (value && typeof value.dispose === 'function') {
-      value.dispose();
-    }
-  }
-}
