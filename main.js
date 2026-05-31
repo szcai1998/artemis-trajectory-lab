@@ -483,67 +483,10 @@ function generateCloudsTexture() {
 // 3. Three.js Scene Construction
 // -----------------------------------------------------------------------------
 const canvasContainer = document.getElementById('canvas-container');
-let renderer;
-let webglSupported = true;
-
-function isWebGLAvailable() {
-  try {
-    const canvas = document.createElement('canvas');
-    return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
-  } catch (e) {
-    return false;
-  }
-}
-
-function showWebGLFallback() {
-  if (canvasContainer) {
-    canvasContainer.innerHTML = `
-      <div class="webgl-fallback" style="
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-        color: var(--accent-cyan);
-        background: radial-gradient(circle, rgba(10,20,40,0.9) 0%, rgba(5,10,20,0.95) 100%);
-        font-family: 'Orbitron', sans-serif;
-        text-align: center;
-        padding: 20px;
-        box-sizing: border-box;
-      ">
-        <div style="font-size: 2.2rem; margin-bottom: 20px; text-shadow: 0 0 10px var(--accent-cyan); letter-spacing: 2px;">⚠️ WEBGL SYSTEM OFFLINE</div>
-        <p style="font-size: 1rem; max-width: 600px; line-height: 1.6; color: var(--text-primary); font-family: 'Inter', sans-serif; margin: 0 0 15px 0;">
-          WebGL is currently disabled, blocked, or not supported by your browser or display hardware configurations.
-        </p>
-        <p style="font-size: 0.9rem; max-width: 600px; line-height: 1.6; color: var(--text-muted); font-family: 'Inter', sans-serif; margin: 0;">
-          The 3D space visualizer is suspended, but all 2D mission systems — including the **Interactive Maneuver Planner**, **Telemetry Charts**, **Live Log Stream**, and **Procedural Synthesizer Audio** — remain **100% Operational**.
-        </p>
-      </div>
-    `;
-  }
-}
-
-// Proactive WebGL and context capability checks
-webglSupported = isWebGLAvailable();
-
-if (webglSupported) {
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    if (!renderer.getContext()) {
-      throw new Error("Failed to get WebGL context");
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    canvasContainer.appendChild(renderer.domElement);
-  } catch (e) {
-    webglSupported = false;
-    console.warn("WebGL not supported or blocked, loading fallback mode:", e);
-    showWebGLFallback();
-  }
-} else {
-  showWebGLFallback();
-}
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+canvasContainer.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x010306);
@@ -557,20 +500,11 @@ const camera = new THREE.PerspectiveCamera(
 // Start looking at Earth
 camera.position.set(4, 2.5, 4);
 
-let controls;
-if (webglSupported) {
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.maxDistance = 1200;
-  controls.minDistance = 0.15;
-} else {
-  controls = {
-    update: () => {},
-    target: new THREE.Vector3(),
-    enabled: false
-  };
-}
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.maxDistance = 1200;
+controls.minDistance = 0.15;
 
 // Direct illumination
 const ambientLight = new THREE.AmbientLight(0x90a8ff, 0.45);
@@ -1011,9 +945,7 @@ window.addEventListener('resize', () => {
   const h = window.innerHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  if (webglSupported) {
-    renderer.setSize(w, h);
-  }
+  renderer.setSize(w, h);
 });
 
 // -----------------------------------------------------------------------------
@@ -1911,10 +1843,9 @@ function animate() {
   }
   
   // Orbit controls update (damping + user inputs) is processed every frame in all modes
-  if (webglSupported) {
-    controls.update();
-    renderer.render(scene, camera);
-  }
+  controls.update();
+  renderer.render(scene, camera);
+}
 
 // Initial kickoff
 updateCraftPosition();
