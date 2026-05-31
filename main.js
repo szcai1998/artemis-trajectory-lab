@@ -486,6 +486,15 @@ const canvasContainer = document.getElementById('canvas-container');
 let renderer;
 let webglSupported = true;
 
+function isWebGLAvailable() {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+  } catch (e) {
+    return false;
+  }
+}
+
 function showWebGLFallback() {
   if (canvasContainer) {
     canvasContainer.innerHTML = `
@@ -515,14 +524,24 @@ function showWebGLFallback() {
   }
 }
 
-try {
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  canvasContainer.appendChild(renderer.domElement);
-} catch (e) {
-  webglSupported = false;
-  console.warn("WebGL not supported or blocked, loading fallback mode:", e);
+// Proactive WebGL and context capability checks
+webglSupported = isWebGLAvailable();
+
+if (webglSupported) {
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    if (!renderer.getContext()) {
+      throw new Error("Failed to get WebGL context");
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    canvasContainer.appendChild(renderer.domElement);
+  } catch (e) {
+    webglSupported = false;
+    console.warn("WebGL not supported or blocked, loading fallback mode:", e);
+    showWebGLFallback();
+  }
+} else {
   showWebGLFallback();
 }
 

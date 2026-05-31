@@ -40,12 +40,23 @@
       const div = document.createElement('div');
       div.id = 'error-overlay';
       div.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 15, 30, 0.95); color: #ff3333; font-family: "Share Tech Mono", monospace; padding: 30px; box-sizing: border-box; z-index: 999999; overflow-y: auto;';
+      
+      let sourceHTML = '';
+      if (file) {
+        const fileName = file.split('/').pop();
+        sourceHTML = '<p style="font-size: 1.1rem; color: #88ccff; margin: 0 0 15px 0;"><strong>Source:</strong> ' + fileName + ' (Line ' + line + ', Col ' + col + ')</p>';
+      }
+      
+      let stackHTML = '';
+      if (stack) {
+        stackHTML = '<pre style="background: rgba(0,0,0,0.6); padding: 15px; border-radius: 4px; border: 1px solid #ff3333; color: #ffaaaa; font-size: 0.9rem; overflow-x: auto; white-space: pre-wrap; margin: 0 0 20px 0; font-family: \'Share Tech Mono\', monospace; max-height: 50vh;">' + stack + '</pre>';
+      }
+
       div.innerHTML = `
         <h1 style="color: #ff3333; border-bottom: 2px solid #ff3333; padding-bottom: 10px; margin-top: 0; font-family: 'Orbitron', sans-serif; font-size: 1.8rem; letter-spacing: 1px;">⚠️ SYSTEM DIAGNOSTICS CRASH</h1>
         <p style="font-size: 1.1rem; color: #ff8888; margin: 15px 0 5px 0;"><strong>Type:</strong> ${type}</p>
         <p style="font-size: 1.1rem; color: #ff8888; margin: 0 0 15px 0;"><strong>Message:</strong> ${message}</p>
-        \${file ? \`<p style="font-size: 1.1rem; color: #88ccff; margin: 0 0 15px 0;"><strong>Source:</strong> \${file.split('/').pop()} (Line \${line}, Col \${col})</p>\` : ''}
-        \${stack ? \`<pre style="background: rgba(0,0,0,0.6); padding: 15px; border-radius: 4px; border: 1px solid #ff3333; color: #ffaaaa; font-size: 0.9rem; overflow-x: auto; white-space: pre-wrap; margin: 0 0 20px 0; font-family: 'Share Tech Mono', monospace; max-height: 50vh;">\${stack}</pre>\` : ''}
+        ` + sourceHTML + stackHTML + `
         <button onclick="location.reload()" style="background: #ff3333; color: white; border: none; padding: 12px 24px; font-family: 'Orbitron', sans-serif; font-size: 1rem; border-radius: 4px; cursor: pointer; box-shadow: 0 0 12px rgba(255, 51, 51, 0.4); font-weight: bold; letter-spacing: 1px; transition: 0.2s;">REBOOT MISSION CONTROL</button>
       `;
       document.body.appendChild(div);
