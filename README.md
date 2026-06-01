@@ -37,6 +37,12 @@
 
 ---
 
+<div align="center">
+  <img src="screenshot.png" alt="Artemis Trajectory Lab HUD Mission Control Dashboard" width="800px" style="border-radius: 8px; border: 1px solid rgba(80,120,180,0.3); box-shadow: 0 0 20px rgba(55,192,255,0.15);" />
+</div>
+
+---
+
 ## 🚀 Overview
 
 **Artemis Trajectory Lab** is a premium, immersive aerospace dashboard that simulates a complete Earth–Moon–Earth mission profile in real time. Inspired by NASA's Artemis program and mission control HUD aesthetics, it renders a fully 3D interactive space environment directly in the browser — no server, no build step, no install required.
